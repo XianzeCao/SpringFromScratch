@@ -9,9 +9,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
 public class MyDispatcherServlet extends HttpServlet {
 
@@ -19,6 +17,8 @@ public class MyDispatcherServlet extends HttpServlet {
     // cache the full class name scanned from the pacakage
     private List<String> classNames = new ArrayList<>();
 
+   
+    private Map<String,Object> IOCContainer = new HashMap<String,Object>();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -52,6 +52,51 @@ public class MyDispatcherServlet extends HttpServlet {
     }
 
     private void doInitInstance() {
+
+            if(classNames.isEmpty()){ return; }
+
+            try {
+                for (String className : classNames) {
+                    Class<?> clazz = Class.forName(className);
+
+                    if(clazz.isAnnotationPresent(MyController.class)) {
+                        String beanName = firstLetterToLowerCase(clazz.getSimpleName());
+                        Object instance = clazz.newInstance();
+                        IOCContainer.put(beanName, instance);
+                    }else if(clazz.isAnnotationPresent(MyService.class)){
+
+                        //1、默认类名首字母小写
+                        String beanName = firstLetterToLowerCase(clazz.getSimpleName());
+
+                        //2、如果在多个包下出现了相同的类名，优先是用别名（自定义命名）
+                        MyService service = clazz.getAnnotation(MyService.class);
+                        if(!"".equals(service.value())){
+                            beanName = service.value();
+                        }
+                        Object instance = clazz.newInstance();
+                        IOCContainer.put(beanName, instance);
+
+                        //3、如果是接口,只能初始化的它的实现类
+                        for (Class<?> i : clazz.getInterfaces()) {
+                            if(IOCContainer.containsKey(i.getName())){
+                                throw new Exception("The " + i.getName() + " is exists,please use alies!!");
+                            }
+                            IOCContainer.put(i.getName(),instance);
+                        }
+
+                    }else {
+                        continue;
+                    }
+
+                }
+            }catch (Exception e){
+                e.printStackTrace();
+            }
+        }
+    private String firstLetterToLowerCase(String simpleName) {
+        char [] chars = simpleName.toCharArray();
+        chars[0] += 32;     //利用了ASCII码，大写字母和小写相差32这个规律
+        return String.valueOf(chars);
     }
 
     private void doScan(String scanPackage) {
