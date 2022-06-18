@@ -8,6 +8,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.net.URL;
 import java.util.*;
 
@@ -49,6 +50,30 @@ public class MyDispatcherServlet extends HttpServlet {
     }
 
     private void doAutowired() {
+        if(IOCContainer.isEmpty()){ return; }
+
+        for (Map.Entry<String, Object> entry : IOCContainer.entrySet()) {
+            for (Field field : entry.getValue().getClass().getDeclaredFields()) {
+                if(!field.isAnnotationPresent(MyAutowired.class)){ continue; }
+
+                MyAutowired autowired = field.getAnnotation(MyAutowired.class);
+                String beanName = autowired.value().trim();
+                if("".equals(beanName)){
+                    beanName = field.getType().getName();
+                }
+
+
+                field.setAccessible(true);
+
+                try {
+                    field.set(entry.getValue(),IOCContainer.get(beanName));
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+
+            }
+
+        }
     }
 
     private void doInitInstance() {
